@@ -163,8 +163,8 @@ jobs:
         id: vars
         shell: bash
         run: |
-          echo "base_image=ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-homeassistant-base:${{ env.BASE_IMAGE_VERSION }}" >> "$GITHUB_OUTPUT"
-          echo "cache_image=ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-homeassistant:latest" >> "$GITHUB_OUTPUT"
+          echo "base_image=ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant-base:${{ env.BASE_IMAGE_VERSION }}" >> "$GITHUB_OUTPUT"
+          echo "cache_image=ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant:latest" >> "$GITHUB_OUTPUT"
           echo "created=$(date --rfc-3339=seconds --utc)" >> "$GITHUB_OUTPUT"
 
       - name: Verify base image signature
