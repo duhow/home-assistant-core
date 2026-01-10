@@ -5,8 +5,6 @@ on:
   workflow_dispatch:
   release:
     types: ["published"]
-  schedule:
-    - cron: "0 2 * * *"
 
 env:
   BUILD_TYPE: core
@@ -21,7 +19,6 @@ env:
 jobs:
   init:
     name: Initialize build
-    if: github.repository_owner == 'home-assistant'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -60,25 +57,8 @@ jobs:
               exit 1
           fi
 
-      - name: Download Translations
-        run: python3 -m script.translations download
-        env:
-          LOKALISE_TOKEN: ${{ secrets.LOKALISE_TOKEN }}
-
-      - name: Archive translations
-        shell: bash
-        run: find ./homeassistant/components/*/translations -name "*.json" | tar zcvf translations.tar.gz -T -
-
-      - name: Upload translations
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: translations
-          path: translations.tar.gz
-          if-no-files-found: error
-
   build_base:
     name: Build ${{ matrix.arch }} base core image
-    if: github.repository_owner == 'home-assistant'
     needs: init
     runs-on: ${{ matrix.os }}
     permissions:
@@ -92,8 +72,6 @@ jobs:
         include:
           - arch: amd64
             os: ubuntu-latest
-          - arch: aarch64
-            os: ubuntu-24.04-arm
     steps:
       - name: Checkout the repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -168,16 +146,6 @@ jobs:
             sed -i "s|home-assistant-intents==.*||" requirements_all.txt
           fi
 
-      - name: Download translations
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: translations
-
-      - name: Extract translations
-        run: |
-          tar xvf translations.tar.gz
-          rm translations.tar.gz
-
       - name: Write meta info file
         shell: bash
         run: |
@@ -203,11 +171,12 @@ jobs:
         id: vars
         shell: bash
         run: |
-          echo "base_image=ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant-base:${{ env.BASE_IMAGE_VERSION }}" >> "$GITHUB_OUTPUT"
-          echo "cache_image=ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant:latest" >> "$GITHUB_OUTPUT"
+          echo "base_image=ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-homeassistant-base:${{ env.BASE_IMAGE_VERSION }}" >> "$GITHUB_OUTPUT"
+          echo "cache_image=ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-homeassistant:latest" >> "$GITHUB_OUTPUT"
           echo "created=$(date --rfc-3339=seconds --utc)" >> "$GITHUB_OUTPUT"
 
       - name: Verify base image signature
+        continue-on-error: true
         run: |
           cosign verify \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -234,7 +203,7 @@ jobs:
           cache-from: ${{ steps.cache.outcome == 'success' && steps.vars.outputs.cache_image || '' }}
           build-args: |
             BUILD_FROM=${{ steps.vars.outputs.base_image }}
-          tags: ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant:${{ needs.init.outputs.version }}
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-homeassistant:${{ needs.init.outputs.version }}
           outputs: type=image,push=true,compression=zstd,compression-level=9,force-compression=true,oci-mediatypes=true
           labels: |
             io.hass.arch=${{ matrix.arch }}
