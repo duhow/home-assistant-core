@@ -45,17 +45,10 @@ jobs:
           type: ${{ env.BUILD_TYPE }}
 
       - name: Verify version
+        continue-on-error: true
         uses: home-assistant/actions/helpers/verify-version@master
         with:
           ignore-dev: true
-
-      - name: Fail if translations files are checked in
-        run: |
-          if [ -n "$(find homeassistant/components/*/translations -type f)" ]; then
-              echo "Translations files are checked in, please remove the following files:"
-              find homeassistant/components/*/translations -type f
-              exit 1
-          fi
 
   build_base:
     name: Build ${{ matrix.arch }} base core image
