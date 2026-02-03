@@ -1,0 +1,71 @@
+name: Build images
+
+# yamllint disable-line rule:truthy
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - docker-build-test
+
+env:
+  BUILD_TYPE: core
+  DEFAULT_PYTHON: "3.13"
+  PIP_TIMEOUT: 60
+  UV_HTTP_TIMEOUT: 60
+  UV_SYSTEM_PYTHON: "true"
+  # Base image version from https://github.com/home-assistant/docker
+  BASE_IMAGE_VERSION: "2025.12.0"
+  ARCHITECTURES: '["amd64", "aarch64"]'
+
+jobs:
+  build_base:
+    name: Build ${{ matrix.arch }} base core image
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            os: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - &install_cosign
+        name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        with:
+          cosign-release: "v2.5.3"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build variables
+        id: vars
+        shell: bash
+        run: |
+          echo "base_image=ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant-base:${{ env.BASE_IMAGE_VERSION }}" >> "$GITHUB_OUTPUT"
+          echo "cache_image=ghcr.io/home-assistant/${{ matrix.arch }}-homeassistant:latest" >> "$GITHUB_OUTPUT"
+          echo "created=$(date --rfc-3339=seconds --utc)" >> "$GITHUB_OUTPUT"
+
+      - name: Build base image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ./Dockerfile2
+          push: true
+          tags: ghcr.io/duhow/${{ matrix.arch }}-homeassistant:test-inherit
+          labels: |
+            io.hass.arch=${{ matrix.arch }}
